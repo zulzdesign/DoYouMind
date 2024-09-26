@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minesweeper</title>
+    <style>
+        body {
+            background-color: #fff;
+            color: #333;
+            font-family: 'Trebuchet MS', 'Lucida Sans Unicode', 'Lucida Grande', 'Lucida Sans', Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-content: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        h1 {
+            text-align: center;
+        }
+
+        .container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #gameboard {
+            display: grid;
+            gap: 1px;
+        }
+
+        .clickable-box {
+            width: 100%;
+            height: 100%;
+            background-color: #777;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            text-align: center;
+            font-size: 12px;
+        }
+
+        .clickable-box.active {
+            background-color: #334;
+        }
+
+        .clickable-box.mine {
+            background-color: #d84315;
+        }
+
+        .flag {
+            background-color: #ff5;
+            color: #f00;
+            font-weight: bold;
+        }
+
+        button {
+            background-color: lightgrey;
+            margin: 20px 1px;
+            padding: 5px 5px;
+            cursor: pointer;
+            width: 30px;
+            height: 30px;
+            border: none;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>Minesweeper</h1>
+    <div class="container">
+        <div id="gameboard"></div>
+    </div>
+    <div class="container">
+        <button class="button" onclick="removeBox()">-</button>
+        <button class="button" onclick="reset()">R</button>
+        <button class="button" onclick="cheatMode()">C</button>
+        <button class="button" onclick="addBox()">+</button>
+        <table id="grid"></table>
+    </div>
+
+    <script>
+        const gameboard = document.getElementById('gameboard');
+        let boxSize = 30;
+        let gridSize = 5;
+        let boxSpacing = gridSize;
+        let boxRadius = 8;
+        let mineArray = [];
+        let cheat = false;
+
+        startapp();
+
+        function startapp() {
+            generateGrid();
+        }
+
+        function generateGrid() {
+            let grid = `repeat(${gridSize}, ${boxSize}px)`;
+            gameboard.innerHTML = '';
+            gameboard.style.gridTemplateColumns = grid;
+            gameboard.style.gridTemplateRows = grid;
+            mineArray = [];
+
+            for (let i = 0; i < gridSize * gridSize; i++) {
+                const box = document.createElement('div');
+                box.style.borderRadius = `${boxRadius}px`;
+                box.className = 'clickable-box';
+                box.dataset.mine = 'false'; // Set mine attribute to false initially
+                box.dataset.index = i; // Store the index of the box for reference
+                box.addEventListener('click', handleBoxClick);
+                box.addEventListener('contextmenu', handleFlag); // Handle right-click for flagging
+                gameboard.appendChild(box);
+                mineArray.push(box); // Store the box in the array for later use
+            }
+            generateMines();
+        }
+
+        function generateMines() {
+            let totalMines = Math.floor(gridSize * gridSize * 0.25); // 25% of the grid will be mines
+            let minePositions = new Set();
+            while (minePositions.size < totalMines) {
+                minePositions.add(Math.floor(Math.random() * mineArray.length));
+            }
+            minePositions.forEach(index => {
+                mineArray[index].dataset.mine = 'true'; // Set mine attribute to true
+            });
+        }
+
+        function handleBoxClick(event) {
+            const box = event.target;
+
+            if (box.classList.contains('flag')) {
+                return; // Do not reveal flagged boxes
+            }
+
+            const index = parseInt(box.dataset.index);
+            if (box.dataset.mine === 'true') {
+                mineArray.forEach(box => {
+                    if (box.dataset.mine === 'true') {
+                        box.classList.add('mine'); // Reveal all mines
+                        mineArray.forEach(box => {
+                            box.removeEventListener('click', handleBoxClick);
+                            box.removeEventListener('contextmenu', handleFlag);
+                        });
+                    }
+                });
+                alert('Really... Do you mine.');
+            } else {
+                const adjacentMines = countAdjacentMines(index);
+                if (adjacentMines > 0) {
+                    box.classList.add('active');
+                    box.textContent = adjacentMines; // Show the number of adjacent mines
+                } else {
+                    revealEmptyCells(index);
+                }
+            }
+            checkWin();
+        }
+
+        function handleFlag(event) {
+            event.preventDefault(); // Prevent right-click menu from showing up
+
+            const box = event.target;
+
+            if (box.classList.contains('active')) {
+                return; // Cannot flag already revealed boxes
+            }
+
+            if (box.classList.contains('flag')) {
+                box.classList.remove('flag');
+                box.textContent = ''; // Remove flag
+            } else {
+                box.classList.add('flag');
+                box.textContent = '%'; // Add flag
+            }
+        }
+
+        function checkWin() {
+            let winNumber = mineArray.filter(box => box.dataset.mine == 'false').length;
+            let actBox = mineArray.filter(box => box.classList.contains('active')).length;
+            console.clear()
+            console.log(winNumber);
+            console.log(actBox);
+            if (actBox == winNumber) {
+
+                if (gridSize == 1) {
+                    alert('Genius!!!');
+                } else if (cheat == true) {
+                    alert('You cheat did ya? Weldone! work smart not hard');
+                } else {
+                    alert('Boom baybeh, you\'re a mine reader!');
+                }
+                mineArray.forEach(box => {
+                    box.removeEventListener('click', handleBoxClick);
+                    box.removeEventListener('contextmenu', handleFlag);
+                });
+            }
+        }
+
+        function countAdjacentMines(index) {
+            const adjacentIndexes = getAdjacentIndexes(index);
+            return adjacentIndexes.reduce((count, adjIndex) => {
+                if (mineArray[adjIndex] && mineArray[adjIndex].dataset.mine === 'true') {
+                    return count + 1;
+                }
+                return count;
+            }, 0);
+        }
+
+        function revealEmptyCells(index) {
+            const stack = [index];
+            const visited = new Set();
+
+            while (stack.length > 0) {
+                const currentIndex = stack.pop();
+                if (visited.has(currentIndex)) continue;
+                visited.add(currentIndex);
+
+                const box = mineArray[currentIndex];
+                const adjacentMines = countAdjacentMines(currentIndex);
+
+                if (adjacentMines > 0) {
+                    box.classList.add('active');
+                    box.textContent = adjacentMines;
+                } else {
+                    box.classList.add('active');
+                    box.textContent = '';
+
+                    // Recursively reveal all non-visited adjacent cells
+                    const adjacentIndexes = getAdjacentIndexes(currentIndex);
+                    adjacentIndexes.forEach(adjIndex => {
+                        if (!visited.has(adjIndex) && mineArray[adjIndex].dataset.mine === 'false') {
+                            stack.push(adjIndex);
+                        }
+                    });
+                }
+            }
+        }
+
+        function getAdjacentIndexes(index) {
+            const adjacent = [];
+            const row = Math.floor(index / gridSize);
+            const col = index % gridSize;
+
+            // Possible adjacent positions (8 directions)
+            const directions = [
+                [-1, -1], [-1, 0], [-1, 1],  // top-left, top, top-right
+                [0, -1], [0, 1],   // left, right
+                [1, -1], [1, 0], [1, 1]   // bottom-left, bottom, bottom-right
+            ];
+
+            directions.forEach(([dx, dy]) => {
+                const newRow = row + dx;
+                const newCol = col + dy;
+
+                if (newRow >= 0 && newRow < gridSize && newCol >= 0 && newCol < gridSize) {
+                    adjacent.push(newRow * gridSize + newCol);
+                }
+            });
+            return adjacent;
+        }
+
+        function cheatMode() {
+            if (cheat == false) {
+                cheat = true;
+                for (let i = 0; i < mineArray.length; i++) {
+                    if (mineArray[i].dataset.mine == 'true') {
+                        mineArray[i].innerHTML = 'X';
+                    }
+                }
+                return cheat;
+            }
+        }
+
+        function addBox() {
+            if (gridSize < 20) {
+                gridSize += 1;
+                generateGrid();
+            }
+
+            switch (gridSize) {
+                case 13:
+                    alert('stop, its too big');
+                    break;
+                case 17:
+                    alert('why?');
+                    break;
+                case 19:
+                    alert('yeah... good luck with that');
+                    break;
+            }
+        }
+
+        function removeBox() {
+            if (gridSize > 1) {
+                gridSize -= 1;
+                generateGrid();
+            }
+        }
+
+        function reset() {
+            generateGrid();
+            return cheat = false;
+        }
+
+    </script>
+</body>
+
+</html>
